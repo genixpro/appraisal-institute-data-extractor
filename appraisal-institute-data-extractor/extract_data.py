@@ -1,7 +1,9 @@
 import time
 import csv
+import os.path
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+import traceback
 from commonregex import CommonRegex
 # from uszipcode import
 import json
@@ -10,31 +12,40 @@ from uszipcode import SearchEngine
 driver = webdriver.Firefox()
 
 extracted = []
+dedupeKeys = set()
 
-with open('results.csv', 'rt') as f:
-    reader = csv.DictReader(f)
-    extracted = list(reader)
+if os.path.exists("results.csv"):
+    with open('results.csv', 'rt') as f:
+        reader = csv.DictReader(f)
+        extracted = list(reader)
+        dedupeKeys = set(entry['email'] for entry in extracted)
 
 existingZipCodes = set([entry['zip'] for entry in extracted])
 
 raws=[]
-dedupeKeys = set()
 
 def fetchDataForZipcode(zipCode):
     driver.get("http://www.myappraisalinstitute.org/findappraiser/")
 
     elements = driver.find_elements_by_tag_name("input")
+    selects = driver.find_elements_by_tag_name("select")
 
     searchButton = None
     zipField = None
-    for elem in elements:
+    distanceField = None
+    for elem in (elements + selects):
         id = elem.get_attribute("id")
         if 'ibtn' in id and 'QCityZipSearch' in id:
             searchButton = elem
         if 'txt' in id and 'ZipQuick' in id:
             zipField = elem
+        if 'DDL' in id and 'ZipRange' in id:
+            distanceField = elem
 
-
+    for option in distanceField.find_elements_by_tag_name('option'):
+        if '100 miles' in option.text:
+            option.click()  # select() in earlier versions of webdriver
+            break
 
     zipField.clear()
     zipField.send_keys(zipCode)
@@ -43,7 +54,6 @@ def fetchDataForZipcode(zipCode):
     time.sleep(6)
 
     anyNewEntries = extractEntries(zipCode)
-    time.sleep(3)
     while hasNextPage() and anyNewEntries:
         nextPage()
         time.sleep(3)
@@ -54,7 +64,7 @@ def fetchDataForZipcode(zipCode):
 
 def extractEntries(zipCode):
     entries = driver.find_elements_by_css_selector("td")
-    anyNewEntries = False
+    countNewEntries = 0
     for entry in entries:
         name = entry.find_elements_by_css_selector("a:first-child")
         data = entry.find_elements_by_css_selector("div:nth-child(4)")
@@ -117,10 +127,14 @@ def extractEntries(zipCode):
             dedupeKey = data['email']
 
             if dedupeKey not in dedupeKeys:
-                anyNewEntries = True
+                countNewEntries += 1
                 extracted.append(data)
                 dedupeKeys.add(dedupeKey)
-    return anyNewEntries
+
+    if countNewEntries > 0:
+        print("Added ", countNewEntries, "new entries")
+
+    return countNewEntries > 0
 
 def hasNextPage():
     nextButton = driver.find_elements_by_css_selector("img[src=\"/findappraiser/images/fafwd.jpg\"")
@@ -145,15 +159,23 @@ def writeCurrentResults():
 
 
 search = SearchEngine(simple_zipcode=True)
-for code in list(search.query(returns=100000000))[100:]:
+allZipCodes = list(search.query(returns=100000000))
+for code in allZipCodes:
     if str(code.zipcode) not in existingZipCodes:
         try:
             fetchDataForZipcode(str(code.zipcode))
+
+            # Find nearby zip-codes and add them to the list of zip-codes already handled
+            if code.lat and code.lng:
+                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=75, returns=1000000))
+                for nearby in nearbyZipCodes:
+                    # print("Nearby Skipped:", nearby.zipcode)
+                    existingZipCodes.add(str(nearby.zipcode))
+
         except Exception as e:
-            pass
+            traceback.print_exc()
     else:
         print("Skipped", str(code.zipcode))
-
 
 
 # elem = driver.find_element_by_name("input")
