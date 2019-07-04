@@ -56,77 +56,89 @@ def fetchDataForZipcode(zipCode):
     page = 1
 
     anyNewEntries = extractEntries(zipCode, page)
+    writeCurrentResults()
     while hasNextPage() and anyNewEntries:
         nextPage()
         page += 1
         time.sleep(3)
         anyNewEntries = extractEntries(zipCode, page)
-        if anyNewEntries:
-            writeCurrentResults()
+        writeCurrentResults()
 
 
 def extractEntries(zipCode, page):
     entries = driver.find_elements_by_css_selector("td")
     countNewEntries = 0
     countDupes = 0
+    countElements = 0
     pageDupes = set()
     for entry in entries:
-        name = entry.find_elements_by_css_selector("a:first-child")
-        data = entry.find_elements_by_css_selector("div:nth-child(4)")
+        children = entry.find_elements_by_css_selector("div b a")
 
+        if len(children) != 1:
+            continue
+
+        countElements += 1
+
+        nameElements = entry.find_elements_by_css_selector("div b a")
+
+        name = None
         phone = None
         address = None
         email = None
         url = None
 
-        if data:
-            lines = data[0].text.splitlines()
+        if nameElements:
+            possibleNames = [elem.text for elem in nameElements if elem.text]
+            if possibleNames:
+                name = possibleNames[0]
 
-            for line in lines:
-                parsed_text = CommonRegex(line)
+        lines = entry.text.splitlines()
 
-                valid_urls = []
-                if hasattr(parsed_text.links, '__call__'):
-                    if parsed_text.links():
-                        valid_urls = [link for link in parsed_text.links() if 'gmail' not in link and 'yahoo' not in link and 'hotmail' not in 'link']
-                else:
-                    if parsed_text.links:
-                        valid_urls = [link for link in parsed_text.links if 'gmail' not in link and 'yahoo' not in link and 'hotmail' not in 'link']
-                if valid_urls:
-                    url = valid_urls[0]
+        for line in lines:
+            parsed_text = CommonRegex(line)
 
+            valid_urls = []
+            if hasattr(parsed_text.links, '__call__'):
+                if parsed_text.links():
+                    valid_urls = [link for link in parsed_text.links() if 'gmail' not in link and 'yahoo' not in link and 'hotmail' not in 'link']
+            else:
+                if parsed_text.links:
+                    valid_urls = [link for link in parsed_text.links if 'gmail' not in link and 'yahoo' not in link and 'hotmail' not in 'link']
+            if valid_urls:
+                url = valid_urls[0]
 
-                if hasattr(parsed_text.emails, '__call__'):
-                    if parsed_text.emails():
-                        email = parsed_text.emails()[0]
-                else:
-                    if parsed_text.emails:
-                        email = parsed_text.emails[0]
+            if hasattr(parsed_text.emails, '__call__'):
+                if parsed_text.emails():
+                    email = parsed_text.emails()[0]
+            else:
+                if parsed_text.emails:
+                    email = parsed_text.emails[0]
 
-                if hasattr(parsed_text.phones, '__call__'):
-                    if parsed_text.phones():
-                        phone = parsed_text.phones()[0]
-                else:
-                    if parsed_text.phones:
-                        phone = parsed_text.phones[0]
+            if hasattr(parsed_text.phones, '__call__'):
+                if parsed_text.phones():
+                    phone = parsed_text.phones()[0]
+            else:
+                if parsed_text.phones:
+                    phone = parsed_text.phones[0]
 
-                if hasattr(parsed_text.street_addresses, '__call__'):
-                    if parsed_text.street_addresses():
-                        address = parsed_text.street_addresses()[0]
-                else:
-                    if parsed_text.street_addresses:
-                        address = parsed_text.street_addresses[0]
+            if hasattr(parsed_text.street_addresses, '__call__'):
+                if parsed_text.street_addresses():
+                    address = parsed_text.street_addresses()[0]
+            else:
+                if parsed_text.street_addresses:
+                    address = parsed_text.street_addresses[0]
 
-        # print(name, phone, email)
-        if name and phone and email:
+        dataText = entry.text.replace("\n", " --- ")
+
+        if name or phone or email:
             data = {
-                "name": [elem.text for elem in name if elem.text][0],
+                "name": name,
                 "phone": phone,
                 "address": address,
                 "email": email,
                 "zip": zipCode,
                 "url": url,
-                "data": data[0].text.replace("\n", " --- ")
+                "data": dataText
             }
 
             dedupeKey = data['email']
@@ -140,7 +152,7 @@ def extractEntries(zipCode, page):
 
             pageDupes.add(dedupeKey)
 
-    print(f"{zipCode}@{page}: Added {countNewEntries} new entries. Had {countDupes} dupes.")
+    print(f"{zipCode}@{page}: Added {countNewEntries} new entries. Had {countDupes} dupes. Examined {countElements} elements")
 
     return countNewEntries > 0
 
