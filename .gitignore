@@ -1,5 +1,5 @@
 venv
 .idea
 *.egg-info
-results.csv
+*.csv
 geckodriver.log

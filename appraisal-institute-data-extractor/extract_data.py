@@ -53,18 +53,23 @@ def fetchDataForZipcode(zipCode):
 
     time.sleep(6)
 
-    anyNewEntries = extractEntries(zipCode)
+    page = 1
+
+    anyNewEntries = extractEntries(zipCode, page)
     while hasNextPage() and anyNewEntries:
         nextPage()
+        page += 1
         time.sleep(3)
-        anyNewEntries = extractEntries(zipCode)
+        anyNewEntries = extractEntries(zipCode, page)
         if anyNewEntries:
             writeCurrentResults()
 
 
-def extractEntries(zipCode):
+def extractEntries(zipCode, page):
     entries = driver.find_elements_by_css_selector("td")
     countNewEntries = 0
+    countDupes = 0
+    pageDupes = set()
     for entry in entries:
         name = entry.find_elements_by_css_selector("a:first-child")
         data = entry.find_elements_by_css_selector("div:nth-child(4)")
@@ -130,9 +135,12 @@ def extractEntries(zipCode):
                 countNewEntries += 1
                 extracted.append(data)
                 dedupeKeys.add(dedupeKey)
+            elif dedupeKey not in pageDupes:
+                countDupes += 1
 
-    if countNewEntries > 0:
-        print("Added ", countNewEntries, "new entries")
+            pageDupes.add(dedupeKey)
+
+    print(f"{zipCode}@{page}: Added {countNewEntries} new entries. Had {countDupes} dupes.")
 
     return countNewEntries > 0
 
