@@ -9,7 +9,7 @@ with open('results.csv', 'rt') as f:
     extracted = list(reader)
 
 
-cityStateZipRegex = r"(\w+)\s+(\w{2})\s+([0-9]{5})(-[0-9]{4})?"
+cityStateZipRegex = r"(\w+\s?\w+)\s+(\w{2})\s+([0-9]{5})(-[0-9]{4})?"
 
 for item in extracted:
     words = item['data'].split()
