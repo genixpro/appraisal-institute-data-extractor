@@ -2,11 +2,15 @@ import time
 import csv
 import os.path
 from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 import traceback
 from commonregex import CommonRegex
 # from uszipcode import
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 import json
+import random
 from uszipcode import SearchEngine
 
 driver = webdriver.Firefox()
@@ -49,12 +53,12 @@ def fetchDataForZipcode(zipCode):
             commercialPropertyTypes = elem
 
     for option in distanceField.find_elements_by_tag_name('option'):
-        if '300 miles' in option.text:
+        if '200 miles' in option.text:
             option.click()
             break
 
     for option in resultsPerPage.find_elements_by_tag_name('option'):
-        if '240' in option.text:
+        if '60' in option.text:
             option.click()
             break
 
@@ -67,7 +71,9 @@ def fetchDataForZipcode(zipCode):
     zipField.send_keys(zipCode)
     searchButton.click()
 
-    time.sleep(6)
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "img[src=\"/findappraiser/images/fafwd.jpg\"")))
+
+    time.sleep(1)
 
     page = 1
 
@@ -196,22 +202,26 @@ def writeCurrentResults():
 
 search = SearchEngine(simple_zipcode=True)
 allZipCodes = list(search.query(returns=100000000))
+random.shuffle(allZipCodes)
 for code in allZipCodes:
-    if str(code.zipcode) not in existingZipCodes:
-        try:
+    try:
+        if str(code.zipcode) not in existingZipCodes:
             fetchDataForZipcode(str(code.zipcode))
 
             # Find nearby zip-codes and add them to the list of zip-codes already handled
             if code.lat and code.lng:
-                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=250, returns=1000000))
+                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=150, returns=1000000))
+                skipped = 0
                 for nearby in nearbyZipCodes:
-                    # print("Nearby Skipped:", nearby.zipcode)
-                    existingZipCodes.add(str(nearby.zipcode))
+                    if str(nearby.zipcode) not in existingZipCodes:
+                        existingZipCodes.add(str(nearby.zipcode))
+                        skipped += 1
+                print(f"Skipping {skipped} Nearby Zip Codes. ")
 
-        except Exception as e:
-            traceback.print_exc()
-    else:
-        print("Skipped", str(code.zipcode))
+    except Exception as e:
+        traceback.print_exc()
+    # else:
+    #     print("Skipped", str(code.zipcode))
 
 
 # elem = driver.find_element_by_name("input")
