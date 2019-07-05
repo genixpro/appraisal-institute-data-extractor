@@ -14,19 +14,20 @@ import random
 from uszipcode import SearchEngine
 
 driver = webdriver.Firefox()
-
 extracted = []
 dedupeKeys = set()
+existingZipCodes = set()
+zipcodeSearch = SearchEngine(simple_zipcode=True)
 
-if os.path.exists("results.csv"):
-    with open('results.csv', 'rt') as f:
-        reader = csv.DictReader(f)
-        extracted = list(reader)
-        dedupeKeys = set(entry['email'] for entry in extracted)
+def loadExistingResults():
+    global existingZipCodes, extracted, dedupeKeys
+    if os.path.exists("results.csv"):
+        with open('results.csv', 'rt') as f:
+            reader = csv.DictReader(f)
+            extracted = list(reader)
+            dedupeKeys = set(entry['email'] for entry in extracted)
+    existingZipCodes = set([entry['zip'] for entry in extracted])
 
-existingZipCodes = set([entry['zip'] for entry in extracted])
-
-raws=[]
 
 def fetchDataForZipcode(zipCode):
     driver.get("http://www.myappraisalinstitute.org/findappraiser/")
@@ -174,7 +175,7 @@ def extractEntries(zipCode, page):
 
             pageDupes.add(dedupeKey)
 
-    print(f"{zipCode}@{page}: Added {countNewEntries} new entries. Had {countDupes} dupes. Examined {countElements} elements")
+    print(f"    {zipCode}@{page}: Added {countNewEntries} new entries. Had {countDupes} dupes. Examined {countElements} elements")
 
     return countNewEntries > 0
 
@@ -200,36 +201,49 @@ def writeCurrentResults():
         writer.writerows(extracted)
 
 
-search = SearchEngine(simple_zipcode=True)
-allZipCodes = list(search.query(returns=100000000))
-random.shuffle(allZipCodes)
-for code in allZipCodes:
-    try:
-        if str(code.zipcode) not in existingZipCodes:
-            fetchDataForZipcode(str(code.zipcode))
+def addNearbyZipsToExistingList(givenZip):
+    code = zipcodeSearch.by_zipcode(givenZip)
 
-            # Find nearby zip-codes and add them to the list of zip-codes already handled
-            if code.lat and code.lng:
-                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=150, returns=1000000))
-                skipped = 0
-                for nearby in nearbyZipCodes:
-                    if str(nearby.zipcode) not in existingZipCodes:
-                        existingZipCodes.add(str(nearby.zipcode))
-                        skipped += 1
-                print(f"Skipping {skipped} Nearby Zip Codes. ")
+    # Find nearby zip-codes and add them to the list of zip-codes already handled
+    if code.lat and code.lng:
+        nearbyZipCodes = list(zipcodeSearch.by_coordinates(code.lat, code.lng, radius=150, returns=1000000))
+        skipped = 0
+        for nearby in nearbyZipCodes:
+            if str(nearby.zipcode) not in existingZipCodes:
+                existingZipCodes.add(str(nearby.zipcode))
+                skipped += 1
+        print(f"    Skipping {skipped} Zip Codes which are within 150 miles of {givenZip}")
 
-    except Exception as e:
-        traceback.print_exc()
-    # else:
-    #     print("Skipped", str(code.zipcode))
+def extractAllData():
+    allZipCodes = [str(code.zipcode) for code in zipcodeSearch.query(returns=100000000)]
+    random.shuffle(allZipCodes)
+    for zip in allZipCodes:
+        try:
+            if zip not in existingZipCodes:
+                print(f"Processing {zip}. Handled {len(existingZipCodes)} of {len(allZipCodes)}. {100 * len(existingZipCodes) / len(allZipCodes)}%")
+                fetchDataForZipcode(zip)
+                existingZipCodes.add(zip)
+                addNearbyZipsToExistingList(zip)
+
+        except Exception as e:
+            traceback.print_exc()
+        # else:
+        #     print("Skipped", str(code.zipcode))
+
+def main():
+    print("Loading existing extractions from results.csv")
+    loadExistingResults()
+
+    print("Skipping over zip-codes already in DB")
+    zipsInDB = list(existingZipCodes)
+    for zip in zipsInDB:
+        addNearbyZipsToExistingList(zip)
+
+    extractAllData()
+
+    driver.close()
 
 
-# elem = driver.find_element_by_name("input")
-# elem.clear()
-# elem.send_keys(Keys.RETURN)
 
-
-
-
-driver.close()
-
+if __name__ == "__main__":
+    main()
