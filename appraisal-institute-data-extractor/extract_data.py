@@ -32,19 +32,35 @@ def fetchDataForZipcode(zipCode):
 
     searchButton = None
     zipField = None
+    resultsPerPage = None
+    commercialPropertyTypes = None
     distanceField = None
     for elem in (elements + selects):
         id = elem.get_attribute("id")
-        if 'ibtn' in id and 'QCityZipSearch' in id:
+        if 'ibtn' in id and 'ServiceSearch' in id:
             searchButton = elem
-        if 'txt' in id and 'ZipQuick' in id:
+        if 'txt' in id and 'zip' in id:
             zipField = elem
-        if 'DDL' in id and 'ZipRange' in id:
+        if 'DDL' in id and 'Within' in id:
             distanceField = elem
+        if 'DDL' in id and 'Result' in id:
+            resultsPerPage = elem
+        if 'DDL' in id and 'CPT' in id:
+            commercialPropertyTypes = elem
 
     for option in distanceField.find_elements_by_tag_name('option'):
-        if '100 miles' in option.text:
-            option.click()  # select() in earlier versions of webdriver
+        if '300 miles' in option.text:
+            option.click()
+            break
+
+    for option in resultsPerPage.find_elements_by_tag_name('option'):
+        if '240' in option.text:
+            option.click()
+            break
+
+    for option in commercialPropertyTypes.find_elements_by_tag_name('option'):
+        if 'Any Commercial' in option.text:
+            option.click()
             break
 
     zipField.clear()
@@ -187,7 +203,7 @@ for code in allZipCodes:
 
             # Find nearby zip-codes and add them to the list of zip-codes already handled
             if code.lat and code.lng:
-                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=75, returns=1000000))
+                nearbyZipCodes = list(search.by_coordinates(code.lat, code.lng, radius=250, returns=1000000))
                 for nearby in nearbyZipCodes:
                     # print("Nearby Skipped:", nearby.zipcode)
                     existingZipCodes.add(str(nearby.zipcode))
