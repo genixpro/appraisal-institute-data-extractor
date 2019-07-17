@@ -20,8 +20,8 @@ dedupeKeys = set()
 existingZipCodes = set()
 zipcodeSearch = SearchEngine(simple_zipcode=True)
 
-searchDist = 20
-zipCodeSkipDist = 15
+searchDist = 30
+zipCodeSkipDist = 10
 
 def loadExistingResults():
     global existingZipCodes, extracted, dedupeKeys
