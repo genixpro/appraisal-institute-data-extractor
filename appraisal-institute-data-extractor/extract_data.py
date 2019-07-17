@@ -19,6 +19,9 @@ dedupeKeys = set()
 existingZipCodes = set()
 zipcodeSearch = SearchEngine(simple_zipcode=True)
 
+searchDist = 20
+zipCodeSkipDist = 15
+
 def loadExistingResults():
     global existingZipCodes, extracted, dedupeKeys
     if os.path.exists("results.csv"):
@@ -54,7 +57,7 @@ def fetchDataForZipcode(zipCode):
             commercialPropertyTypes = elem
 
     for option in distanceField.find_elements_by_tag_name('option'):
-        if '200 miles' in option.text:
+        if f'{searchDist} miles' in option.text:
             option.click()
             break
 
@@ -206,13 +209,13 @@ def addNearbyZipsToExistingList(givenZip):
 
     # Find nearby zip-codes and add them to the list of zip-codes already handled
     if code.lat and code.lng:
-        nearbyZipCodes = list(zipcodeSearch.by_coordinates(code.lat, code.lng, radius=150, returns=1000000))
+        nearbyZipCodes = list(zipcodeSearch.by_coordinates(code.lat, code.lng, radius=zipCodeSkipDist, returns=1000000))
         skipped = 0
         for nearby in nearbyZipCodes:
             if str(nearby.zipcode) not in existingZipCodes:
                 existingZipCodes.add(str(nearby.zipcode))
                 skipped += 1
-        print(f"    Skipping {skipped} Zip Codes which are within 150 miles of {givenZip}")
+        print(f"    Skipping {skipped} Zip Codes which are within {zipCodeSkipDist} miles of {givenZip}")
 
 def extractAllData():
     allZipCodes = [str(code.zipcode) for code in zipcodeSearch.query(returns=100000000)]
