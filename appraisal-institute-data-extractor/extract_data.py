@@ -226,13 +226,22 @@ def extractAllData():
             try:
                 if zip not in existingZipCodes:
                     print(f"Processing {zip}. Handled {len(existingZipCodes)} of {len(allZipCodes)}. {100 * len(existingZipCodes) / len(allZipCodes)}%")
-                    fetchDataForZipcode(zip, initialTimeout=30*attempt, refreshTimeout=5*attempt)
+                    fetchDataForZipcode(zip, initialTimeout=15*attempt, refreshTimeout=5*attempt)
                     existingZipCodes.add(zip)
                     addNearbyZipsToExistingList(zip)
                 break
             except selenium.common.exceptions.TimeoutException as e:
-                print(f"Timeout on {zip}. Retrying.")
-                continue
+                foundNoResult = False
+                for elem in driver.find_elements_by_tag_name('b'):
+                    if 'No people found for this search request' in elem.text:
+                        foundNoResult = True
+                        break
+                if foundNoResult:
+                    print(f"No results for zip {zip}")
+                    break
+                else:
+                    print(f"Timeout on {zip}. Retrying.")
+                    continue
             except Exception as e:
                 traceback.print_exc()
                 break
