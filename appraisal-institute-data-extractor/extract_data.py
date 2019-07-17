@@ -237,10 +237,10 @@ def extractAllData():
                         foundNoResult = True
                         break
                 if foundNoResult:
-                    print(f"No results for zip {zip}")
+                    print(f"    No results for zip {zip}")
                     break
                 else:
-                    print(f"Timeout on {zip}. Retrying.")
+                    print(f"    Timeout on {zip}. Retrying.")
                     continue
             except Exception as e:
                 traceback.print_exc()
