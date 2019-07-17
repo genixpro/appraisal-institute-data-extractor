@@ -29,7 +29,7 @@ def loadExistingResults():
         with open('results.csv', 'rt') as f:
             reader = csv.DictReader(f)
             extracted = list(reader)
-            dedupeKeys = set(entry['email'] for entry in extracted)
+            dedupeKeys = set(entry['name'] + entry['email'] for entry in extracted)
     existingZipCodes = set([entry['zip'] for entry in extracted])
 
 
@@ -168,7 +168,7 @@ def extractEntries(zipCode, page):
                 "data": dataText
             }
 
-            dedupeKey = data['email']
+            dedupeKey = str(data['name']) + str(data['email'])
 
             if dedupeKey not in dedupeKeys:
                 countNewEntries += 1
