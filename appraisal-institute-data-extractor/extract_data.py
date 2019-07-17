@@ -4,6 +4,7 @@ import os.path
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
+import selenium.common.exceptions
 import traceback
 from commonregex import CommonRegex
 # from uszipcode import
@@ -32,7 +33,7 @@ def loadExistingResults():
     existingZipCodes = set([entry['zip'] for entry in extracted])
 
 
-def fetchDataForZipcode(zipCode):
+def fetchDataForZipcode(zipCode, initialTimeout=30, refreshTimeout=3):
     driver.get("http://www.myappraisalinstitute.org/findappraiser/")
 
     elements = driver.find_elements_by_tag_name("input")
@@ -75,7 +76,7 @@ def fetchDataForZipcode(zipCode):
     zipField.send_keys(zipCode)
     searchButton.click()
 
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "img[src=\"/findappraiser/images/fafwd.jpg\"")))
+    WebDriverWait(driver, initialTimeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "img[src=\"/findappraiser/images/fafwd.jpg\"")))
 
     time.sleep(1)
 
@@ -86,7 +87,7 @@ def fetchDataForZipcode(zipCode):
     while hasNextPage() and anyNewEntries:
         nextPage()
         page += 1
-        time.sleep(3)
+        time.sleep(refreshTimeout)
         anyNewEntries = extractEntries(zipCode, page)
         writeCurrentResults()
 
@@ -221,15 +222,20 @@ def extractAllData():
     allZipCodes = [str(code.zipcode) for code in zipcodeSearch.query(returns=100000000)]
     random.shuffle(allZipCodes)
     for zip in allZipCodes:
-        try:
-            if zip not in existingZipCodes:
-                print(f"Processing {zip}. Handled {len(existingZipCodes)} of {len(allZipCodes)}. {100 * len(existingZipCodes) / len(allZipCodes)}%")
-                fetchDataForZipcode(zip)
-                existingZipCodes.add(zip)
-                addNearbyZipsToExistingList(zip)
-
-        except Exception as e:
-            traceback.print_exc()
+        for attempt in range(1, 5):
+            try:
+                if zip not in existingZipCodes:
+                    print(f"Processing {zip}. Handled {len(existingZipCodes)} of {len(allZipCodes)}. {100 * len(existingZipCodes) / len(allZipCodes)}%")
+                    fetchDataForZipcode(zip, initialTimeout=30*attempt, refreshTimeout=5*attempt)
+                    existingZipCodes.add(zip)
+                    addNearbyZipsToExistingList(zip)
+                break
+            except selenium.common.exceptions.TimeoutException as e:
+                print(f"Timeout on {zip}. Retrying.")
+                continue
+            except Exception as e:
+                traceback.print_exc()
+                break
         # else:
         #     print("Skipped", str(code.zipcode))
 
